@@ -1,7 +1,7 @@
 /*
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
- * Copyright (c) 2010-2016 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2010-2024 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -72,6 +72,9 @@ import org.glassfish.grizzly.nio.transport.TCPNIOTransportBuilder;
 import org.glassfish.grizzly.utils.ChunkingFilter;
 import org.glassfish.grizzly.utils.Pair;
 
+import static org.glassfish.grizzly.http.HttpCodecFilter.STRICT_HEADER_NAME_VALIDATION_RFC_9110;
+import static org.glassfish.grizzly.http.HttpCodecFilter.STRICT_HEADER_VALUE_VALIDATION_RFC_9110;
+
 /**
  * Testing HTTP request parsing
  * 
@@ -80,6 +83,20 @@ import org.glassfish.grizzly.utils.Pair;
 public class HttpRequestParseTest extends TestCase {
 
     public static final int PORT = 19000;
+
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
+        System.setProperty(STRICT_HEADER_NAME_VALIDATION_RFC_9110, String.valueOf(Boolean.TRUE));
+        System.setProperty(STRICT_HEADER_VALUE_VALIDATION_RFC_9110, String.valueOf(Boolean.TRUE));
+    }
+
+    @Override
+    protected void tearDown() throws Exception {
+        super.tearDown();
+        System.setProperty(STRICT_HEADER_NAME_VALIDATION_RFC_9110, String.valueOf(Boolean.FALSE));
+        System.setProperty(STRICT_HEADER_VALUE_VALIDATION_RFC_9110, String.valueOf(Boolean.FALSE));
+    }
 
     public void testCustomMethod() throws Exception {
         doHttpRequestTest("TAKE", "/index.html", "HTTP/1.0", Collections.<String, Pair<String, String>>emptyMap(), "\r\n");
@@ -105,6 +122,82 @@ public class HttpRequestParseTest extends TestCase {
         doHttpRequestTest("POST", "/index.html", "HTTP/1.1", headers, "\r\n", true);
     }
 
+    public void testDisallowedHeaders() {
+        final StringBuilder sb = new StringBuilder("GET / HTTP/1.1\r\n");
+        sb.append("Host: localhost\r\n");
+        sb.append(new char[]{0x00, 0x01, 0x02, '\t', '\n', '\r', ' ', '\"', '(', ')', '/', ';', '<', '=', '>', '?', '@',
+                '[', 0x5c, ']', '{', '}'}).append(": some-value\r\n");
+        sb.append("\r\n");
+        try {
+            doTestDecoder(sb.toString(), 128);
+            fail("Bad HTTP headers exception had to be thrown");
+        } catch (IllegalStateException e) {
+            // expected
+        }
+        try {
+            doTestDecoder("GET /index.html HTTP/1.1\nHost: localhost\nContent -Length: 1234\n\n", 128);
+            fail("Bad HTTP headers exception had to be thrown");
+        } catch (IllegalStateException e) {
+            // expected
+        }
+        try {
+            doTestDecoder("GET /index.html HTTP/1.1\nHost: localhost\nContent-\rLength: 1234\n\n", 128);
+            fail("Bad HTTP headers exception had to be thrown");
+        } catch (IllegalStateException e) {
+            // expected
+        }
+    }
+
+    public void testDisallowedCharactersForHeaderContentValues() {
+        final StringBuilder sb = new StringBuilder("GET / HTTP/1.1\r\n");
+        sb.append("Host: localhost\r\n");
+        sb.append("Some-Header: some-");
+        // valid header values
+        sb.append(new char[]{'\t', ' ', '\"', '(', ')', '/', ';', '<', '=', '>', '?', '@', '[', 0x5c, ']', '{', '}'})
+                .append("\r\n");
+        sb.append("\r\n");
+        doTestDecoder(sb.toString(), 128);
+
+        try {
+            doTestDecoder("GET /index.html HTTP/1.1\nHost: loca\\rlhost\nContent -Length: 1234\n\n", 128);
+            fail("Bad HTTP headers exception had to be thrown");
+        } catch (IllegalStateException e) {
+            // expected
+        }
+        try {
+            doTestDecoder("GET /index.html HTTP/1.1\nHost: loca\\nlhost\nContent-Length: 1234\n\n", 128);
+            fail("Bad HTTP headers exception had to be thrown");
+        } catch (IllegalStateException e) {
+            // expected
+        }
+        try {
+            doTestDecoder("GET /index.html HTTP/1.1\nHost: loca\\0lhost\nContent-Length: 1234\n\n", 128);
+            fail("Bad HTTP headers exception had to be thrown");
+        } catch (IllegalStateException e) {
+            // expected
+        }
+
+        final char[] invalidChars = new char[]{0x00, 0x01, 0x02, '\r'};
+        for (final char ch : invalidChars) {
+            try {
+                doTestDecoder("GET /index.html HTTP/1.1\nHost: localhost\nSome-Header: some-" + ch + "value\n\n", 128);
+                fail("Bad HTTP headers exception had to be thrown");
+            } catch (IllegalStateException e) {
+                // expected
+            }
+        }
+    }
+
+    public void testIgnoredHeaders() throws Exception {
+        final Map<String, Pair<String, String>> headers = new HashMap<>();
+        headers.put("Host", new Pair<>("localhost", "localhost"));
+        headers.put("Ignore\r\nContent-length", new Pair<>("2345", "2345"));
+        final Map<String, Pair<String, String>> expectedHeaders = new HashMap<>();
+        expectedHeaders.put("Host", new Pair<>("localhost", "localhost"));
+        expectedHeaders.put("Content-length", new Pair<>("2345", "2345"));
+        doHttpRequestTest("POST", "/index.html", "HTTP/1.1", headers, expectedHeaders, "\r\n");
+    }
+
     public void testMultiLineHeaders() throws Exception {
         Map<String, Pair<String, String>> headers =
                 new HashMap<String, Pair<String, String>>();
@@ -118,9 +211,9 @@ public class HttpRequestParseTest extends TestCase {
         Map<String, Pair<String, String>> headers =
                 new HashMap<String, Pair<String, String>>();
         headers.put("Host", new Pair<String,String>("localhost", "localhost"));
-        headers.put("Multi-line", new Pair<String,String>("first\r\n          second\n       third", "first second third"));
+        headers.put("Multi-line", new Pair<String,String>("first\r\n          second\r\n       third", "first second third"));
         headers.put("Content-length", new Pair<String,String>("2345", "2345"));
-        doHttpRequestTest("POST", "/index.html", "HTTP/1.1", headers, "\n");
+        doHttpRequestTest("POST", "/index.html", "HTTP/1.1", headers, "\r\n");
     }
 
     public void testCompleteURI() throws Exception {
@@ -130,7 +223,7 @@ public class HttpRequestParseTest extends TestCase {
         headers.put("Content-length", new Pair<String,String>("2345", "2345"));
         doHttpRequestTest(new Pair<String, String>("POST", "POST"),
                 new Pair<String, String>("http://localhost:8180/index.html", "/index.html"),
-                new Pair<String,String>("HTTP/1.1", "HTTP/1.1"), headers, "\n", false);
+                new Pair<String,String>("HTTP/1.1", "HTTP/1.1"), headers, "\r\n", false);
     }
 
     public void testCompleteEmptyURI() throws Exception {
@@ -140,7 +233,7 @@ public class HttpRequestParseTest extends TestCase {
         headers.put("Content-length", new Pair<String,String>("2345", "2345"));
         doHttpRequestTest(new Pair<String, String>("POST", "POST"),
                 new Pair<String, String>("http://localhost:8180", "/"),
-                new Pair<String,String>("HTTP/1.1", "HTTP/1.1"), headers, "\n", false);
+                new Pair<String,String>("HTTP/1.1", "HTTP/1.1"), headers, "\r\n", false);
     }
 
     public void testDecoderOK() {
@@ -184,7 +277,7 @@ public class HttpRequestParseTest extends TestCase {
     }
 
     public void testDecoderOverflowHeader2() {
-        doTestDecoder("GET /index.html HTTP/1.0\nHost: localhost\n\n", 42);
+        doTestDecoder("GET /index.html HTTP/1.0\r\nHost: localhost\r\n\r\n", 50);
     }
     
     public void testDecoderOverflowHeader3() {
@@ -202,7 +295,7 @@ public class HttpRequestParseTest extends TestCase {
     
     public void testChunkedTransferEncodingCaseInsensitive() {
         HttpPacket packet = doTestDecoder(
-                "POST /index.html HTTP/1.1\nHost: localhost\nTransfer-Encoding: CHUNked\r\n\r\n", 4096);
+                "POST /index.html HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: CHUNked\r\n\r\n", 4096);
         assertTrue(packet.getHttpHeader().isChunked());
     }
     
@@ -232,6 +325,18 @@ public class HttpRequestParseTest extends TestCase {
         }
     }
 
+    private void doHttpRequestTest(String method, String requestURI, String protocol,
+                                   Map<String, Pair<String, String>> headers,
+                                   Map<String, Pair<String, String>> expectedHeaders, String eol) throws Exception {
+        doHttpRequestTest(new Pair<>(method, method), new Pair<>(requestURI, requestURI),
+                new Pair<>(protocol, protocol), headers, expectedHeaders, eol, false);
+    }
+
+    private void doHttpRequestTest(Pair<String, String> method, Pair<String, String> requestURI, Pair<String, String> protocol,
+                                   Map<String, Pair<String, String>> headers, String eol, boolean preserveHeaderCase) throws Exception {
+        doHttpRequestTest(method, requestURI, protocol, headers, headers, eol, preserveHeaderCase);
+    }
+
     private void doHttpRequestTest(String method, String requestURI,
             String protocol, Map<String, Pair<String, String>> headers, String eol)
             throws Exception {
@@ -253,7 +358,7 @@ public class HttpRequestParseTest extends TestCase {
     @SuppressWarnings("unchecked")
     private void doHttpRequestTest(Pair<String, String> method,
             Pair<String, String> requestURI, Pair<String, String> protocol,
-            Map<String, Pair<String, String>> headers, String eol,
+            Map<String, Pair<String, String>> headers, Map<String, Pair<String, String>> expectedHeaders, String eol,
             boolean preserveHeaderCase)
             throws Exception {
         
@@ -269,7 +374,7 @@ public class HttpRequestParseTest extends TestCase {
                 .add(new ChunkingFilter(2))
                 .add(serverFilter)
                 .add(new HTTPRequestCheckFilter(parseResult,
-                        method, requestURI, protocol, headers, preserveHeaderCase));
+                        method, requestURI, protocol, expectedHeaders == null ? headers : expectedHeaders, preserveHeaderCase));
 
         TCPNIOTransport transport = TCPNIOTransportBuilder.newInstance().build();
         transport.setProcessor(filterChainBuilder.build());
