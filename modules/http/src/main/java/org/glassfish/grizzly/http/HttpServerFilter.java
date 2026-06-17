@@ -630,12 +630,6 @@ public class HttpServerFilter extends HttpCodecFilter {
         }
         
         final MimeHeaders headers = request.getHeaders();
-
-        //here qe can add validation:
-        if (headers.contains(Header.ContentLength.getLowerCase()) && headers.contains(Header.TransferEncoding.getLowerCase())) {
-            request.getProcessingState().error = true;
-            return;
-        }
         
         DataChunk hostDC = null;
         
