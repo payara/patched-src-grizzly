@@ -1,5 +1,6 @@
 /*
- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
+ * Copyright (c) 2026 Contributors to the Eclipse Foundation.
+ * Copyright (c) 2010, 2020 Oracle and/or its affiliates. All rights reserved.
  *
  * Copyright (c) 2010-2017 Oracle and/or its affiliates. All rights reserved.
  *
@@ -83,6 +84,7 @@ import org.glassfish.grizzly.utils.Futures;
 import org.junit.Test;
 
 import static org.glassfish.grizzly.Writer.Reentrant;
+import static org.glassfish.grizzly.http.server.NetworkListener.DEFAULT_NETWORK_HOST;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -98,7 +100,7 @@ public class NIOOutputSinksTest {
         final HttpServer server = new HttpServer();
         final NetworkListener listener =
                 new NetworkListener("Grizzly",
-                                    NetworkListener.DEFAULT_NETWORK_HOST,
+                                    DEFAULT_NETWORK_HOST,
                                     PORT);
         final int LENGTH = 256000;
         final int MAX_LENGTH = LENGTH * 2;
@@ -255,7 +257,7 @@ public class NIOOutputSinksTest {
         final HttpServer server = new HttpServer();
         final NetworkListener listener =
                 new NetworkListener("Grizzly",
-                                    NetworkListener.DEFAULT_NETWORK_HOST,
+                                    DEFAULT_NETWORK_HOST,
                                     PORT);
         final int LENGTH = 256000;
         final int MAX_LENGTH = LENGTH * 2;
@@ -411,12 +413,10 @@ public class NIOOutputSinksTest {
     @Test
     public void testWriteExceptionPropagation() throws Exception {
         final int LENGTH = 1024;
-        
-        final HttpServer server = new HttpServer();
-        final NetworkListener listener =
-                new NetworkListener("Grizzly",
-                                    NetworkListener.DEFAULT_NETWORK_HOST,
-                                    PORT);
+
+        HttpServer server = new HttpServer();
+        NetworkListener listener = new NetworkListener("Grizzly", DEFAULT_NETWORK_HOST, PORT);
+        listener.setMaxPendingBytes(-1);
         listener.registerAddOn(new AddOn() {
 
             @Override
@@ -541,7 +541,7 @@ public class NIOOutputSinksTest {
         final HttpServer server = new HttpServer();
         final NetworkListener listener =
                 new NetworkListener("Grizzly",
-                                    NetworkListener.DEFAULT_NETWORK_HOST,
+                                    DEFAULT_NETWORK_HOST,
                                     PORT);
         final int LENGTH = 65536;
         final int MAX_LENGTH = LENGTH * 10;
@@ -658,7 +658,7 @@ public class NIOOutputSinksTest {
         final HttpServer server = new HttpServer();
         final NetworkListener listener =
                 new NetworkListener("Grizzly",
-                        NetworkListener.DEFAULT_NETWORK_HOST,
+                        DEFAULT_NETWORK_HOST,
                         PORT);
         server.addListener(listener);
         final FutureImpl<String> parseResult = SafeFutureImpl.create();
@@ -768,7 +768,7 @@ public class NIOOutputSinksTest {
         final HttpServer server = new HttpServer();
         final NetworkListener listener =
                 new NetworkListener("Grizzly",
-                                    NetworkListener.DEFAULT_NETWORK_HOST,
+                                    DEFAULT_NETWORK_HOST,
                                     PORT);
         server.addListener(listener);
         
@@ -914,7 +914,7 @@ public class NIOOutputSinksTest {
         final HttpServer server = new HttpServer();
         final NetworkListener listener =
                 new NetworkListener("Grizzly",
-                                    NetworkListener.DEFAULT_NETWORK_HOST,
+                                    DEFAULT_NETWORK_HOST,
                                     PORT);
         server.addListener(listener);
         
@@ -1064,7 +1064,7 @@ public class NIOOutputSinksTest {
         final HttpServer server = new HttpServer();
         final NetworkListener listener =
                 new NetworkListener("Grizzly",
-                                    NetworkListener.DEFAULT_NETWORK_HOST,
+                                    DEFAULT_NETWORK_HOST,
                                     PORT);
         listener.getTransport().setIOStrategy(WorkerThreadIOStrategy.getInstance());
         server.addListener(listener);
@@ -1243,7 +1243,7 @@ public class NIOOutputSinksTest {
         final HttpServer server = new HttpServer();
         final NetworkListener listener =
                 new NetworkListener("Grizzly",
-                                    NetworkListener.DEFAULT_NETWORK_HOST,
+                                    DEFAULT_NETWORK_HOST,
                                     PORT);
         final TCPNIOTransport transport = listener.getTransport();
         transport.setIOStrategy(WorkerThreadIOStrategy.getInstance());

@@ -1,7 +1,6 @@
 /*
- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
- *
- * Copyright (c) 2008-2015 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026 Contributors to the Eclipse Foundation.
+ * Copyright (c) 2008, 2020 Oracle and/or its affiliates. All rights reserved.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -55,7 +54,26 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.glassfish.grizzly.*;
+
+import org.glassfish.grizzly.Buffer;
+import org.glassfish.grizzly.CloseReason;
+import org.glassfish.grizzly.Closeable;
+import org.glassfish.grizzly.CompletionHandler;
+import org.glassfish.grizzly.Connection;
+import org.glassfish.grizzly.ConnectionProbe;
+import org.glassfish.grizzly.EmptyCompletionHandler;
+import org.glassfish.grizzly.Grizzly;
+import org.glassfish.grizzly.GrizzlyFuture;
+import org.glassfish.grizzly.ICloseType;
+import org.glassfish.grizzly.IOEvent;
+import org.glassfish.grizzly.Processor;
+import org.glassfish.grizzly.ProcessorSelector;
+import org.glassfish.grizzly.ReadResult;
+import org.glassfish.grizzly.StandaloneProcessor;
+import org.glassfish.grizzly.StandaloneProcessorSelector;
+import org.glassfish.grizzly.Transport;
+import org.glassfish.grizzly.WriteResult;
+import org.glassfish.grizzly.asyncqueue.AsyncQueueWriter;
 import org.glassfish.grizzly.asyncqueue.AsyncReadQueueRecord;
 import org.glassfish.grizzly.asyncqueue.AsyncWriteQueueRecord;
 import org.glassfish.grizzly.asyncqueue.TaskQueue;
@@ -82,16 +100,24 @@ public abstract class NIOConnection implements Connection<SocketAddress> {
     private static final boolean WIN32 = "\\".equals(System.getProperty("file.separator"));
     private static final Logger LOGGER = Grizzly.logger(NIOConnection.class);
     private static final short MAX_ZERO_READ_COUNT = 100;
-    
-    /**
-     * Is initial OP_READ enabling required for the connection
-     */
+
+    private static final long DEFAULT_PENDING_BYTES_HARD_LIMIT;
+
+    static {
+        final long maxHeapBytes = Runtime.getRuntime().maxMemory();
+        final long budgetBytesTotal = (long) (maxHeapBytes * 0.25);
+        final int minConcurrentConnection = 100;
+        DEFAULT_PENDING_BYTES_HARD_LIMIT = budgetBytesTotal / minConcurrentConnection;
+    }
+
+    /** Is initial OP_READ enabling required for the connection */
     private boolean isInitialReadRequired = true;
     
     protected final NIOTransport transport;
     protected volatile int maxAsyncWriteQueueSize;
-    protected volatile long readTimeoutMillis = 30000;
-    protected volatile long writeTimeoutMillis = 30000;
+    protected volatile int asyncWriteQueueSizeHardLimitMultiplier;
+    protected volatile long readTimeoutMillis = 30_000L;
+    protected volatile long writeTimeoutMillis = 30_000L;
     protected volatile SelectableChannel channel;
     protected volatile SelectionKey selectionKey;
     protected volatile SelectorRunner selectorRunner;
@@ -204,7 +230,23 @@ public abstract class NIOConnection implements Connection<SocketAddress> {
     public void setMaxAsyncWriteQueueSize(int maxAsyncWriteQueueSize) {
         this.maxAsyncWriteQueueSize = maxAsyncWriteQueueSize;
     }
-    
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int getAsyncWriteQueueSizeHardLimitMultiplier() {
+        return asyncWriteQueueSizeHardLimitMultiplier;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setAsyncWriteQueueSizeHardLimitMultiplier(int asyncWriteQueueSizeHardLimitMultiplier) {
+        this.asyncWriteQueueSizeHardLimitMultiplier = asyncWriteQueueSizeHardLimitMultiplier;
+    }
+
     @Override
     public long getReadTimeout(TimeUnit timeUnit) {
         return timeUnit.convert(readTimeoutMillis, TimeUnit.MILLISECONDS);
@@ -1126,5 +1168,32 @@ public abstract class NIOConnection implements Connection<SocketAddress> {
                 return state;
             }
         }
+    }
+
+    protected void resetProperties() {
+        setReadBufferSize(transport.getReadBufferSize());
+        setWriteBufferSize(transport.getWriteBufferSize());
+
+        final int transportMaxAsyncWriteQueueSize =
+                transport.getAsyncQueueIO().getWriter().getMaxPendingBytesPerConnection();
+        setMaxAsyncWriteQueueSize(
+                transportMaxAsyncWriteQueueSize == AsyncQueueWriter.AUTO_SIZE ? getWriteBufferSize() * 4 :
+                transportMaxAsyncWriteQueueSize);
+
+        final int transportHardLimitMultiplier =
+                transport.getAsyncQueueIO().getWriter().getPendingBytesHardLimitMultiplier();
+        setAsyncWriteQueueSizeHardLimitMultiplier(transportHardLimitMultiplier == AsyncQueueWriter.AUTO_SIZE ?
+                                                  calculateHardLimitMultiplier(maxAsyncWriteQueueSize) :
+                                                  transportHardLimitMultiplier);
+    }
+
+    protected static int calculateHardLimitMultiplier(final int maxAsyncWriteQueueSize) {
+        if (maxAsyncWriteQueueSize <= 0) {
+            return AsyncQueueWriter.MIN_PENDING_BYTES_HARD_LIMIT_MULTIPLIER;
+        }
+        final int multiplier = (int) Math.max(Integer.MIN_VALUE,
+                                              Math.min(DEFAULT_PENDING_BYTES_HARD_LIMIT / maxAsyncWriteQueueSize,
+                                                       Integer.MAX_VALUE));
+        return Math.max(multiplier, AsyncQueueWriter.MIN_PENDING_BYTES_HARD_LIMIT_MULTIPLIER);
     }
 }
