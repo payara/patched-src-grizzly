@@ -64,6 +64,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import static org.glassfish.grizzly.http.util.HttpCodecUtils.isSpaceOrTab;
 
 /*
  * In a server it is very important to be able to operate on
@@ -1150,5 +1151,54 @@ public final class ByteChunk implements Chunk, Cloneable, Serializable {
         return result;
     }
 
+    public static boolean endsWithValidDelimitedTokenIgnoreCaseLowerCase(final byte[] buffer, final int start,
+                                                                         final int end, final byte[] cmpTo,
+                                                                         final byte delimiter) {
+        final int compareLength = cmpTo.length;
+        final int tokenStart = end - compareLength;
+        if (compareLength == 0 || tokenStart < start) {
+            return false;
+        }
 
+        // Compare the final token.
+        for (int i = 0; i < compareLength; i++) {
+            if (Ascii.toLower(buffer[tokenStart + i]) != cmpTo[i]) {
+                return false;
+            }
+        }
+
+        int previous = tokenStart - 1;
+        // Ignore whitespace immediately before the final token.
+        while (previous >= start && isSpaceOrTab(buffer[previous])) {
+            previous--;
+        }
+
+        // The expected token is the entire value.
+        if (previous < start) {
+            return true;
+        }
+
+        // A token must be preceded by a delimiter.
+        if (buffer[previous] != delimiter) {
+            return false;
+        }
+
+        // Validate preceding tokens: each delimiter-separated value must be non-empty.
+        boolean hasTokenValue = false;
+        for (previous--; previous >= start; previous--) {
+            final byte value = buffer[previous];
+            if (isSpaceOrTab(value)) {
+                continue;
+            }
+            if (value == delimiter) {
+                if (!hasTokenValue) {
+                    return false;
+                }
+                hasTokenValue = false;
+            } else {
+                hasTokenValue = true;
+            }
+        }
+        return hasTokenValue;
+    }
 }
