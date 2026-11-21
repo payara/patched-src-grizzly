@@ -2,6 +2,7 @@
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
  * Copyright (c) 2010-2017 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026 Payara Foundation and/or its affiliates.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -43,6 +44,7 @@ package org.glassfish.grizzly.http.util;
 import java.nio.charset.Charset;
 import org.glassfish.grizzly.Buffer;
 import org.glassfish.grizzly.memory.Buffers;
+import static org.glassfish.grizzly.http.util.HttpCodecUtils.isSpaceOrTab;
 
 /**
  * {@link Buffer} chunk representation.
@@ -685,5 +687,56 @@ public class BufferChunk implements Chunk {
         if (modified) {
             resetStringCache();
         }
+    }
+
+    public static boolean endsWithValidDelimitedTokenIgnoreCaseLowerCase(final Buffer buffer, final int start,
+                                                                         final int end, final byte[] cmpTo,
+                                                                         final byte delimiter) {
+        final int compareLength = cmpTo.length;
+        final int tokenStart = end - compareLength;
+        if (compareLength == 0 || tokenStart < start) {
+            return false;
+        }
+
+        // Compare the final token.
+        for (int i = 0; i < compareLength; i++) {
+            if (Ascii.toLower(buffer.get(tokenStart + i)) != cmpTo[i]) {
+                return false;
+            }
+        }
+
+        int previous = tokenStart - 1;
+        // Ignore whitespace immediately before the final token.
+        while (previous >= start && isSpaceOrTab(buffer.get(previous))) {
+            previous--;
+        }
+
+        // The expected token is the entire value.
+        if (previous < start) {
+            return true;
+        }
+
+        // A token must be preceded by a delimiter.
+        if (buffer.get(previous) != delimiter) {
+            return false;
+        }
+
+        // Validate preceding tokens: each delimiter-separated value must be non-empty.
+        boolean hasTokenValue = false;
+        for (previous--; previous >= start; previous--) {
+            final byte value = buffer.get(previous);
+            if (isSpaceOrTab(value)) {
+                continue;
+            }
+            if (value == delimiter) {
+                if (!hasTokenValue) {
+                    return false;
+                }
+                hasTokenValue = false;
+            } else {
+                hasTokenValue = true;
+            }
+        }
+        return hasTokenValue;
     }
 }

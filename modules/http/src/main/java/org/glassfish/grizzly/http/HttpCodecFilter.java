@@ -2,6 +2,7 @@
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS HEADER.
  *
  * Copyright (c) 2010-2024 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026 Payara Foundation and/or its affiliates.
  *
  * The contents of this file are subject to the terms of either the GNU
  * General Public License Version 2 only ("GPL") or the Common Development
@@ -1074,11 +1075,7 @@ public abstract class HttpCodecFilter extends HttpBaseFilter
             
             parsingState.isContentLengthHeader = false;
         } else if (parsingState.isTransferEncodingHeader) {
-            // here we do case-insensitive ByteChunk.startsWith(...)
-            if (end - start >= CHUNKED_ENCODING_BYTES.length &&
-                    ByteChunk.equalsIgnoreCaseLowerCase(input, start,
-                    start + CHUNKED_ENCODING_BYTES.length,
-                    CHUNKED_ENCODING_BYTES)) {
+            if (ByteChunk.endsWithValidDelimitedTokenIgnoreCaseLowerCase(input, start, end, CHUNKED_ENCODING_BYTES, Constants.COMMA)) {
                 // content-length may have been already set.  If so,
                 // the transfer encoding takes precedence.
                 httpHeader.setContentLengthLong(-1);
@@ -1393,8 +1390,7 @@ public abstract class HttpCodecFilter extends HttpBaseFilter
             
             parsingState.isContentLengthHeader = false;
         } else if (parsingState.isTransferEncodingHeader) {
-            if (BufferChunk.startsWith(input, start, end,
-                    CHUNKED_ENCODING_BYTES)) {
+            if (BufferChunk.endsWithValidDelimitedTokenIgnoreCaseLowerCase(input, start, end, CHUNKED_ENCODING_BYTES, Constants.COMMA)) {
                 // content-length may have been already set.  If so,
                 // the transfer encoding takes precedence.
                 httpHeader.setContentLengthLong(-1);
