@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2026 Contributors to the Eclipse Foundation
  * Copyright (c) 2020 Oracle and/or its affiliates. All rights reserved.
  *
  * This program and the accompanying materials are made available under the
@@ -32,6 +33,8 @@ public class Termination {
     static final Termination PEER_CLOSE_TERMINATION = new Termination(TerminationType.PEER_CLOSE, CLOSED_BY_PEER_STRING, true);
 
     static final Termination RESET_TERMINATION = new Termination(TerminationType.RST, "Reset by peer", false);
+
+    static final Termination LOCAL_RESET_TERMINATION = new Termination(TerminationType.RST, "Reset locally", false);
 
     static final Termination UNEXPECTED_FRAME_TERMINATION = new Termination(TerminationType.LOCAL_CLOSE, "Unexpected HTTP/2 frame", false);
 
