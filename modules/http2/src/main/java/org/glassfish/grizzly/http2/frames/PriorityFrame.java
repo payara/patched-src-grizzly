@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2012, 2017 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026 Contributors to the Eclipse Foundation.
+ * Copyright (c) 2012, 2020 Oracle and/or its affiliates. All rights reserved.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0, which is available at
@@ -62,10 +63,10 @@ public class PriorityFrame extends Http2Frame {
         frame.weight = frameBuffer.get() & 0xff;
 
         frame.setFrameBuffer(frameBuffer);
-        
+
         return frame;
     }
-    
+
     public static PriorityFrameBuilder builder() {
         return new PriorityFrameBuilder();
     }
@@ -81,7 +82,7 @@ public class PriorityFrame extends Http2Frame {
     public boolean isExclusive() {
         return isExclusive;
     }
-    
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
@@ -91,7 +92,7 @@ public class PriorityFrame extends Http2Frame {
                 .append(", streamDependency=").append(streamDependency)
                 .append(", weight=").append(weight)
                 .append('}');
-        
+
         return sb.toString();
     }
 
@@ -110,7 +111,7 @@ public class PriorityFrame extends Http2Frame {
         buffer.putInt((isExclusive ? 0x80000000 : 0) |
                 (streamDependency & 0x7fffffff));
         buffer.put((byte) weight);
-        
+
         buffer.trim();
 
         return buffer;
@@ -125,7 +126,7 @@ public class PriorityFrame extends Http2Frame {
     protected Map<Integer, String> getFlagNamesMap() {
         return Collections.emptyMap();
     }
-    
+
     // -------------------------------------------------- Methods from Cacheable
 
 
@@ -135,9 +136,10 @@ public class PriorityFrame extends Http2Frame {
             return;
         }
 
+        isExclusive = false;
         streamDependency = 0;
         weight = 0;
-        
+
         super.recycle();
         ThreadCache.putToCache(CACHE_IDX, this);
     }
@@ -177,16 +179,16 @@ public class PriorityFrame extends Http2Frame {
             this.exclusive = exclusive;
             return this;
         }
-        
+
         @Override
         public PriorityFrame build() {
             final PriorityFrame frame = PriorityFrame.create();
             setHeaderValuesTo(frame);
-            
+
             frame.streamDependency = streamDependency;
             frame.weight = weight;
             frame.isExclusive = exclusive;
-            
+
             return frame;
         }
 
@@ -199,5 +201,5 @@ public class PriorityFrame extends Http2Frame {
             return this;
         }
 
-    } 
+    }
 }

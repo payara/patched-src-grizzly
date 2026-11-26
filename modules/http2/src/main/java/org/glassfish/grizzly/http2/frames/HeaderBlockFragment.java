@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2014, 2017 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026 Contributors to the Eclipse Foundation.
+ * Copyright (c) 2014, 2020 Oracle and/or its affiliates. All rights reserved.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0, which is available at
@@ -23,14 +24,14 @@ import org.glassfish.grizzly.Buffer;
 public abstract class HeaderBlockFragment extends Http2Frame {
 
     public static final byte END_HEADERS = 0x4;
-    
+
     static final Map<Integer, String> FLAG_NAMES_MAP =
             new HashMap<>(2);
-    
+
     static {
         FLAG_NAMES_MAP.put((int) END_HEADERS, "END_HEADERS");
     }
-    
+
     protected Buffer compressedHeaders;
     protected boolean truncated;
 
@@ -57,7 +58,7 @@ public abstract class HeaderBlockFragment extends Http2Frame {
     public Buffer takePayload() {
         final Buffer payload = compressedHeaders;
         compressedHeaders = null;
-        
+
         return payload;
     }
 
@@ -65,7 +66,7 @@ public abstract class HeaderBlockFragment extends Http2Frame {
     protected Map<Integer, String> getFlagNamesMap() {
         return FLAG_NAMES_MAP;
     }
-    
+
     // -------------------------------------------------- Methods from Cacheable
 
 
@@ -75,6 +76,7 @@ public abstract class HeaderBlockFragment extends Http2Frame {
             return;
         }
 
+        truncated = false;
         compressedHeaders = null;
         super.recycle();
     }
@@ -115,7 +117,7 @@ public abstract class HeaderBlockFragment extends Http2Frame {
         @SuppressWarnings("unchecked")
         public T compressedHeaders(final Buffer compressedHeaders) {
             this.compressedHeaders = compressedHeaders;
-            
+
             return getThis();
         }
 

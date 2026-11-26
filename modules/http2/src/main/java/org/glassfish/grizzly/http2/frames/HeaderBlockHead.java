@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2014, 2017 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026 Contributors to the Eclipse Foundation.
+ * Copyright (c) 2014, 2020 Oracle and/or its affiliates. All rights reserved.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0, which is available at
@@ -23,17 +24,17 @@ import static org.glassfish.grizzly.http2.frames.PushPromiseFrame.FLAG_NAMES_MAP
 public abstract class HeaderBlockHead extends HeaderBlockFragment {
 
     public static final byte PADDED = 0x8;
-    
+
     static final Map<Integer, String> FLAG_NAMES_MAP =
             new HashMap<>(2);
-    
+
     static {
         FLAG_NAMES_MAP.putAll(HeaderBlockFragment.FLAG_NAMES_MAP);
         FLAG_NAMES_MAP.put((int) PADDED, "PADDED");
     }
-    
+
     protected int padLength;
-    
+
     // ---------------------------------------------------------- Public Methods
 
     public int getPadLength() {
@@ -48,7 +49,7 @@ public abstract class HeaderBlockHead extends HeaderBlockFragment {
     protected Map<Integer, String> getFlagNamesMap() {
         return FLAG_NAMES_MAP;
     }
-    
+
     // -------------------------------------------------- Methods from Cacheable
 
 
@@ -58,6 +59,7 @@ public abstract class HeaderBlockHead extends HeaderBlockFragment {
             return;
         }
 
+        padLength = 0;
         super.recycle();
     }
 
@@ -69,7 +71,7 @@ public abstract class HeaderBlockHead extends HeaderBlockFragment {
             extends HeaderBlockFragmentBuilder<T> {
 
         protected int padLength;
-        
+
         // -------------------------------------------------------- Constructors
 
 

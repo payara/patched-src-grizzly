@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2014, 2017 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026 Contributors to the Eclipse Foundation.
+ * Copyright (c) 2014, 2020 Oracle and/or its affiliates. All rights reserved.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0, which is available at
@@ -28,9 +29,9 @@ public class PushPromiseFrame extends HeaderBlockHead {
                        ThreadCache.obtainIndex(PushPromiseFrame.class, 8);
 
     public static final int TYPE = 5;
-    
+
     private int promisedStreamId;
-    
+
     // ------------------------------------------------------------ Constructors
 
 
@@ -45,7 +46,7 @@ public class PushPromiseFrame extends HeaderBlockHead {
         final PushPromiseFrame frame = create();
         frame.setFlags(flags);
         frame.setStreamId(streamId);
-        
+
         if (frame.isFlagSet(PADDED)) {
             frame.padLength = buffer.get() & 0xFF;
         }
@@ -53,7 +54,7 @@ public class PushPromiseFrame extends HeaderBlockHead {
         frame.promisedStreamId = buffer.getInt() & 0x7FFFFFFF;
         frame.compressedHeaders = buffer.split(buffer.position());
         frame.setFrameBuffer(buffer);
-        
+
         return frame;
     }
 
@@ -62,7 +63,7 @@ public class PushPromiseFrame extends HeaderBlockHead {
         if (frame == null) {
             frame = new PushPromiseFrame();
         }
-        
+
         return frame;
     }
 
@@ -72,7 +73,7 @@ public class PushPromiseFrame extends HeaderBlockHead {
 
     /**
      * Remove HeadersFrame padding (if it was applied).
-     * 
+     *
      * @return this HeadersFrame instance
      */
     public PushPromiseFrame normalize() {
@@ -80,13 +81,13 @@ public class PushPromiseFrame extends HeaderBlockHead {
             clearFlag(PADDED);
             compressedHeaders.limit(compressedHeaders.limit() - padLength);
             padLength = 0;
-            
+
             onPayloadUpdated();
         }
-        
+
         return this;
     }
-    
+
     public int getPromisedStreamId() {
         return promisedStreamId;
     }
@@ -100,9 +101,8 @@ public class PushPromiseFrame extends HeaderBlockHead {
             return;
         }
 
-        padLength = 0;
         promisedStreamId = 0;
-        
+
         super.recycle();
         ThreadCache.putToCache(CACHE_IDX, this);
     }
@@ -112,11 +112,11 @@ public class PushPromiseFrame extends HeaderBlockHead {
     public int getType() {
         return TYPE;
     }
-    
+
     @Override
     public Buffer toBuffer(final MemoryManager memoryManager) {
         final boolean isPadded = isFlagSet(PADDED);
-        
+
         final Buffer buffer = memoryManager.allocate(
                 FRAME_HEADER_SIZE +
                         (isPadded ? 1 : 0) + 4);
@@ -128,11 +128,11 @@ public class PushPromiseFrame extends HeaderBlockHead {
         }
 
         buffer.putInt(promisedStreamId);
-        
+
         buffer.trim();
         final CompositeBuffer cb = CompositeBuffer.newBuffer(memoryManager,
                 buffer, compressedHeaders);
-        
+
         cb.allowBufferDispose(true);
         cb.allowInternalBuffersDispose(true);
         return cb;
@@ -159,12 +159,12 @@ public class PushPromiseFrame extends HeaderBlockHead {
         return (isPadded ? 1 : 0) + 4 +
                 (compressedHeaders != null ? compressedHeaders.remaining() : 0);
     }
-    
+
     @Override
     protected Map<Integer, String> getFlagNamesMap() {
         return FLAG_NAMES_MAP;
     }
-    
+
     // ---------------------------------------------------------- Nested Classes
 
 
@@ -189,11 +189,11 @@ public class PushPromiseFrame extends HeaderBlockHead {
         public PushPromiseFrame build() {
             final PushPromiseFrame frame = PushPromiseFrame.create();
             setHeaderValuesTo(frame);
-            
+
             frame.compressedHeaders = compressedHeaders;
             frame.padLength = padLength;
             frame.promisedStreamId = promisedStreamId;
-            
+
             return frame;
         }
 

@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2012, 2017 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026 Contributors to the Eclipse Foundation.
+ * Copyright (c) 2012, 2020 Oracle and/or its affiliates. All rights reserved.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0, which is available at
@@ -29,13 +30,13 @@ public class HeadersFrame extends HeaderBlockHead {
                        ThreadCache.obtainIndex(HeadersFrame.class, 8);
 
     public static final int TYPE = 1;
-    
+
     public static final byte END_STREAM = 0x1;
     public static final byte PRIORITIZED = 0x20;
 
     static final Map<Integer, String> FLAG_NAMES_MAP =
             new HashMap<>(8);
-    
+
     static {
         FLAG_NAMES_MAP.putAll(HeaderBlockHead.FLAG_NAMES_MAP);
         FLAG_NAMES_MAP.put((int) END_STREAM, "END_STREAM");
@@ -46,7 +47,7 @@ public class HeadersFrame extends HeaderBlockHead {
     private int streamDependency;
     private int weight;
     private int compressedHeadersLen;
-    
+
     // ------------------------------------------------------------ Constructors
 
 
@@ -61,22 +62,22 @@ public class HeadersFrame extends HeaderBlockHead {
         final HeadersFrame frame = create();
         frame.setFlags(flags);
         frame.setStreamId(streamId);
-        
+
         if (frame.isFlagSet(PADDED)) {
             frame.padLength = buffer.get() & 0xFF;
         }
-        
+
         if (frame.isFlagSet(PRIORITIZED)) {
             final int dependency = buffer.getInt();
             frame.exclusive = (dependency & 1L << 31) != 0;
             frame.streamDependency = dependency & 0x7FFFFFFF;
             frame.weight = buffer.get() & 0xff;
         }
-        
+
         frame.compressedHeaders = buffer.split(buffer.position());
         frame.compressedHeadersLen = frame.compressedHeaders.remaining();
         frame.setFrameBuffer(buffer);
-        
+
         return frame;
     }
 
@@ -85,7 +86,7 @@ public class HeadersFrame extends HeaderBlockHead {
         if (frame == null) {
             frame = new HeadersFrame();
         }
-        
+
         return frame;
     }
 
@@ -95,7 +96,7 @@ public class HeadersFrame extends HeaderBlockHead {
 
     /**
      * Remove HeadersFrame padding (if it was applied).
-     * 
+     *
      * @return this HeadersFrame instance
      */
     public HeadersFrame normalize() {
@@ -103,13 +104,13 @@ public class HeadersFrame extends HeaderBlockHead {
             clearFlag(PADDED);
             compressedHeaders.limit(compressedHeaders.limit() - padLength);
             padLength = 0;
-            
+
             onPayloadUpdated();
         }
-        
+
         return this;
     }
-    
+
     public int getStreamDependency() {
         return streamDependency;
     }
@@ -121,15 +122,15 @@ public class HeadersFrame extends HeaderBlockHead {
     public int getWeight() {
         return weight;
     }
-    
+
     public boolean isEndStream() {
         return isFlagSet(END_STREAM);
     }
-    
+
     public boolean isPrioritized() {
         return isFlagSet(PRIORITIZED);
     }
-    
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
@@ -143,7 +144,7 @@ public class HeadersFrame extends HeaderBlockHead {
                 .append('}');
         return sb.toString();
     }
-    
+
     // -------------------------------------------------- Methods from Cacheable
 
 
@@ -153,10 +154,11 @@ public class HeadersFrame extends HeaderBlockHead {
             return;
         }
 
-        padLength = 0;
+        exclusive = false;
         streamDependency = 0;
         weight = 0;
-        
+        compressedHeadersLen = 0;
+
         super.recycle();
         ThreadCache.putToCache(CACHE_IDX, this);
     }
@@ -166,15 +168,15 @@ public class HeadersFrame extends HeaderBlockHead {
     public int getType() {
         return TYPE;
     }
-    
+
     @Override
     public Buffer toBuffer(final MemoryManager memoryManager) {
         final boolean isPadded = isFlagSet(PADDED);
         final boolean isPrioritySet = isFlagSet(PRIORITIZED);
-        
+
         final int extraHeaderLen = (isPadded ? 1 : 0) +
                 (isPrioritySet ? 5 : 0);
-        
+
         final Buffer buffer = memoryManager.allocate(
                 FRAME_HEADER_SIZE + extraHeaderLen);
 
@@ -188,11 +190,11 @@ public class HeadersFrame extends HeaderBlockHead {
             buffer.putInt(streamDependency);
             buffer.put((byte) (weight & 0xff));
         }
-        
+
         buffer.trim();
         final CompositeBuffer cb = CompositeBuffer.newBuffer(memoryManager,
                 buffer, compressedHeaders);
-        
+
         cb.allowBufferDispose(true);
         cb.allowInternalBuffersDispose(true);
         return cb;
@@ -211,7 +213,7 @@ public class HeadersFrame extends HeaderBlockHead {
     protected Map<Integer, String> getFlagNamesMap() {
         return FLAG_NAMES_MAP;
     }
-    
+
     // ---------------------------------------------------------- Nested Classes
 
 
@@ -264,18 +266,18 @@ public class HeadersFrame extends HeaderBlockHead {
             this.weight = weight;
             return this;
         }
-        
-        
+
+
         public HeadersFrame build() {
             final HeadersFrame frame = HeadersFrame.create();
             setHeaderValuesTo(frame);
-            
+
             frame.compressedHeaders = compressedHeaders;
             frame.compressedHeadersLen = compressedHeaders.remaining();
             frame.padLength = padLength;
             frame.streamDependency = streamDependency;
             frame.weight = weight;
-            
+
             return frame;
         }
 
